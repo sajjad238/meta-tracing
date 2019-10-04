@@ -1,0 +1,180 @@
+From eb1f17062724e87410136c4d7c9e8ae23f9d6108 Mon Sep 17 00:00:00 2001
+From: Sajjad Ahmed <sajjad_ahmed@mentor.com>
+Date: Fri, 4 Oct 2019 11:50:36 +0500
+Subject: [PATCH 3/5] add_tracepoint_layer
+
+---
+ src/gui/kernel/qguiapplication.cpp          | 34 +++++++++++++++++++++++++++++
+ src/src.pro                                 |  7 ++++++
+ src/widgets/graphicsview/qgraphicsscene.cpp |  8 +++++++
+ src/widgets/kernel/qapplication.cpp         | 23 +++++++++++++++++++
+ 4 files changed, 72 insertions(+)
+
+diff --git a/src/gui/kernel/qguiapplication.cpp b/src/gui/kernel/qguiapplication.cpp
+index 5014878..2f3dbc6 100644
+--- a/src/gui/kernel/qguiapplication.cpp
++++ b/src/gui/kernel/qguiapplication.cpp
+@@ -123,6 +123,11 @@
+ 
+ #include <ctype.h>
+ 
++#ifdef ENABLE_SA_TRACE
++    #define QT_TRACEPOINT_PER_LIBRARY_DEFINITION
++    #include <sa-trace/qt_tracepoints.h>
++#endif // ENABLE_SA_TRACE
++
+ QT_BEGIN_NAMESPACE
+ 
+ // Helper macro for static functions to check on the existence of the application class.
+@@ -1788,6 +1793,35 @@ int QGuiApplication::exec()
+ */
+ bool QGuiApplication::notify(QObject *object, QEvent *event)
+ {
++#ifdef ENABLE_SA_TRACE
++    if (event) {
++        switch (event->type())
++        {
++        case QEvent::KeyPress:
++        case QEvent::KeyRelease:
++            {
++                QKeyEvent* key = static_cast<QKeyEvent*>(event);
++                qt_tracepoint(Qt, qtNotifyKeyEvent, key->type(), key->key(), key->modifiers());
++            }
++            break;
++
++        case QEvent::MouseButtonPress:
++        case QEvent::MouseButtonRelease:
++        case QEvent::MouseButtonDblClick:
++        case QEvent::MouseMove:
++            {
++                QMouseEvent* mouse = static_cast<QMouseEvent*>(event);
++                qt_tracepoint(Qt, qtSendMouseEvent, mouse->buttons());
++            }
++            break;
++
++        default:
++            // Ignore
++            break;
++        }
++    }
++#endif // ENABLE_SA_TRACE
++
+     if (object->isWindowType()) {
+         if (QGuiApplicationPrivate::sendQWindowEventToQPlatformWindow(static_cast<QWindow *>(object), event))
+             return true; // Platform plugin ate the event
+diff --git a/src/src.pro b/src/src.pro
+index b704ccd..25c63bf 100644
+--- a/src/src.pro
++++ b/src/src.pro
+@@ -149,6 +149,9 @@ src_plugins.target = sub-plugins
+ 
+ src_android.subdir = $$PWD/android
+ 
++src_satrace.subdir = $$PWD/3rdparty/sa-trace
++src_satrace.target = sub-satrace
++
+ # this order is important
+ !qtConfig(system-zlib)|cross_compile {
+     SUBDIRS += src_qtzlib
+@@ -158,6 +161,10 @@ src_android.subdir = $$PWD/android
+     }
+ }
+ SUBDIRS += src_tools_bootstrap src_tools_moc src_tools_rcc src_tools_qfloat16_tables
++qtConfig(sa-trace) {
++    SUBDIRS += src_satrace
++    src_corelib.depends += src_satrace
++}
+ qtConfig(regularexpression):pcre2 {
+     SUBDIRS += src_3rdparty_pcre2
+     src_corelib.depends += src_3rdparty_pcre2
+diff --git a/src/widgets/graphicsview/qgraphicsscene.cpp b/src/widgets/graphicsview/qgraphicsscene.cpp
+index 3dce958..d95bd29 100644
+--- a/src/widgets/graphicsview/qgraphicsscene.cpp
++++ b/src/widgets/graphicsview/qgraphicsscene.cpp
+@@ -249,6 +249,10 @@
+ #include <private/qgesturemanager_p.h>
+ #include <private/qpathclipper_p.h>
+ 
++#ifdef ENABLE_SA_TRACE
++    #include <sa-trace/qt_tracepoints.h>
++#endif // ENABLE_SA_TRACE
++
+ // #define GESTURE_DEBUG
+ #ifndef GESTURE_DEBUG
+ # define DEBUG if (0) qDebug
+@@ -3328,6 +3332,10 @@ void QGraphicsScene::advance()
+ */
+ bool QGraphicsScene::event(QEvent *event)
+ {
++#ifdef ENABLE_SA_TRACE
++    qt_tracepoint(Qt, qtGraphicsSceneEvents, event->type());
++#endif // ENABLE_SA_TRACE
++
+     Q_D(QGraphicsScene);
+ 
+     switch (event->type()) {
+diff --git a/src/widgets/kernel/qapplication.cpp b/src/widgets/kernel/qapplication.cpp
+index f564475..648c108 100644
+--- a/src/widgets/kernel/qapplication.cpp
++++ b/src/widgets/kernel/qapplication.cpp
+@@ -111,6 +111,11 @@
+ 
+ #include <qtwidgets_tracepoints_p.h>
+ 
++#ifdef ENABLE_SA_TRACE
++    #define QT_TRACEPOINT_PER_LIBRARY_DEFINITION
++    #include <sa-trace/qt_tracepoints.h>
++#endif // ENABLE_SA_TRACE
++
+ //#define ALIEN_DEBUG
+ 
+ static void initResources()
+@@ -2582,6 +2587,10 @@ bool QApplicationPrivate::sendMouseEvent(QWidget *receiver, QMouseEvent *event,
+     Q_ASSERT(nativeWidget);
+     Q_ASSERT(buttonDown);
+ 
++#ifdef ENABLE_SA_TRACE
++    qt_tracepoint(Qt, qtSendMouseEvent, event->buttons());
++#endif // ENABLE_SA_TRACE
++
+     if (alienWidget && !isAlien(alienWidget))
+         alienWidget = 0;
+ 
+@@ -3059,6 +3068,13 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
+     case QEvent::KeyPress:
+     case QEvent::KeyRelease:
+         {
++#ifdef ENABLE_SA_TRACE
++            {
++                QKeyEvent* key = static_cast<QKeyEvent*>(e);
++                qt_tracepoint(Qt, qtNotifyKeyEvent, key->type(), key->key(), key->modifiers());
++            }
++#endif // ENABLE_SA_TRACE
++
+             bool isWidget = receiver->isWidgetType();
+ #if QT_CONFIG(graphicsview)
+             const bool isGraphicsWidget = !isWidget && qobject_cast<QGraphicsWidget *>(receiver);
+@@ -3106,6 +3122,9 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
+ #endif
+             }
+             qt_in_tab_key_event = false;
++#ifdef ENABLE_SA_TRACE
++            qt_tracepoint(Qt, qtKeyEventConsumed, key->type(), key->key(), key->modifiers());
++#endif // ENABLE_SA_TRACE
+         }
+         break;
+     case QEvent::MouseButtonPress:
+@@ -3171,6 +3190,10 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
+ 
+             mouse->setAccepted(eventAccepted);
+ 
++#ifdef ENABLE_SA_TRACE
++            qt_tracepoint(Qt, qtMouseEventConsumed, mouse->buttons());
++#endif // ENABLE_SA_TRACE
++
+             if (e->type() == QEvent::MouseMove) {
+                 if (!pw)
+                     break;
+-- 
+2.7.4
+

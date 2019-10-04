@@ -1,0 +1,94 @@
+From df1d57a3eeae580586c805fa1186489abd68a4b9 Mon Sep 17 00:00:00 2001
+From: Sajjad Ahmed <sajjad_ahmed@mentor.com>
+Date: Fri, 4 Oct 2019 12:33:27 +0500
+Subject: [PATCH 5/5] add_tracepoint_layer
+
+---
+ config_help.txt |  1 +
+ configure       |  5 +++++
+ configure.json  | 16 ++++++++++++++--
+ 3 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/config_help.txt b/config_help.txt
+index 63ba289..0a60524 100644
+--- a/config_help.txt
++++ b/config_help.txt
+@@ -306,6 +306,7 @@ Gui, printing, widget options:
+     -tslib ............. Enable tslib support [auto]
+     -xcb-xinput ........ Enable XInput2 support [auto]
+     -xkbcommon ......... Enable key mapping support [auto]
++    -sa-trace  ........ Use Sourcery Analyzer [yes]
+ 
+   Image formats:
+     -gif ............... Enable reading support for GIF [auto]
+diff --git a/configure b/configure
+index dcca0f9..7e0667d 100755
+--- a/configure
++++ b/configure
+@@ -372,6 +372,7 @@ OPT_VERBOSE=no
+ OPT_HELP=
+ CFG_SILENT=no
+ CFG_DEV=no
++CFG_SOURCERYANALYZER=yes
+ 
+ #-------------------------------------------------------------------------------
+ # parse command line arguments
+@@ -859,3 +860,7 @@ if [ -n "$CFG_HOST_QT_TOOLS_PATH" ]; then
+ else
+     "$outpath/bin/qmake" "$relpathMangled" -- "$@"
+ fi
++if [ "$CFG_SOURCERYANALYZER" = "yes" ]; then
++    QT_CONFIG="$QT_CONFIG sa-trace"
++
++fi
+diff --git a/configure.json b/configure.json
+index 7279259..d4e2c01 100644
+--- a/configure.json
++++ b/configure.json
+@@ -135,7 +135,8 @@
+             "Werror": { "type": "boolean", "name": "warnings_are_errors" },
+             "widgets": "boolean",
+             "xplatform": "string",
+-            "zlib": { "type": "enum", "name": "system-zlib", "values": { "system": "yes", "qt": "no" } }
++            "zlib": { "type": "enum", "name": "system-zlib", "values": { "system": "yes", "qt": "no" } },
++            "sa-trace": "boolean"
+         },
+         "prefix": {
+             "D": "defines",
+@@ -166,6 +167,11 @@
+                 { "libs": "-s USE_ZLIB=1", "condition": "config.wasm" }
+             ]
+         },
++        "sa-trace":{
++            "label": "sa-trace",
++            "sources": {"libs": "-lsa-trace"}
++
++        },
+         "dbus": {
+             "label": "D-Bus >= 1.2",
+             "test": {
+@@ -714,6 +720,11 @@
+             "autoDetect": "config.uikit || config.android || config.winrt",
+             "output": [ "publicFeature" ]
+         },
++        "sa-trace": {
++            "label": "Use Sourcery Analyzer",
++            "condition": "libs.sa-trace",
++            "output": [ "publicFeature", "publicQtConfig" ]
++        },
+         "simulator_and_device": {
+             "label": "Build for both simulator and device",
+             "condition": "config.uikit && input.sdk == ''",
+@@ -1447,7 +1458,8 @@ Configure with '-qreal float' to create a build that is binary-compatible with 5
+             "entries": [
+                 "pkg-config",
+                 "libudev",
+-                "system-zlib"
++                "system-zlib",
++                "sa-trace"
+             ]
+         }
+     ]
+-- 
+2.7.4
+

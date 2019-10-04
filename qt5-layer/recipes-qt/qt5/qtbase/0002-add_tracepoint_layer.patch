@@ -1,0 +1,74 @@
+From ef0571fd81d95287cf044a9d828236f867bace97 Mon Sep 17 00:00:00 2001
+From: Sajjad Ahmed <sajjad_ahmed@mentor.com>
+Date: Fri, 4 Oct 2019 11:18:46 +0500
+Subject: [PATCH 2/5] add_tracepoint_layer
+
+---
+ src/gui/gui.pro                |  2 ++
+ src/gui/image/qimagereader.cpp | 16 ++++++++++++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/src/gui/gui.pro b/src/gui/gui.pro
+index 06c9cd3..a2781c1 100644
+--- a/src/gui/gui.pro
++++ b/src/gui/gui.pro
+@@ -49,6 +49,8 @@ qtConfig(animation): include(animation/animation.pri)
+ include(itemmodels/itemmodels.pri)
+ include(vulkan/vulkan.pri)
+ 
++contains(QT_CONFIG,sa-trace):include(../3rdparty/sa-trace.pri)
++contains(QT_CONFIG,sa-trace):CONFIG += sa-trace
+ QMAKE_LIBS += $$QMAKE_LIBS_GUI
+ 
+ load(qt_module)
+diff --git a/src/gui/image/qimagereader.cpp b/src/gui/image/qimagereader.cpp
+index 17e1982..d725959 100644
+--- a/src/gui/image/qimagereader.cpp
++++ b/src/gui/image/qimagereader.cpp
+@@ -169,6 +169,11 @@
+ 
+ #include <algorithm>
+ 
++#ifdef ENABLE_SA_TRACE
++    #include <QThread>
++    #include <sa-trace/qt_tracepoints.h>
++#endif // ENABLE_SA_TRACE
++
+ QT_BEGIN_NAMESPACE
+ 
+ using namespace QImageReaderWriterHelpers;
+@@ -1234,6 +1239,11 @@ bool QImageReader::read(QImage *image)
+     if (!d->handler && !d->initHandler())
+         return false;
+ 
++#ifdef ENABLE_SA_TRACE
++    long threadId = (long)(QThread::currentThread());
++    qt_tracepoint(Qt, qtImageReader, threadId, 1, fileName().toLatin1().constData());
++#endif // ENABLE_SA_TRACE
++
+     // set the handler specific options.
+     if (d->handler->supportsOption(QImageIOHandler::ScaledSize) && d->scaledSize.isValid()) {
+         if ((d->handler->supportsOption(QImageIOHandler::ClipRect) && !d->clipRect.isNull())
+@@ -1265,6 +1275,9 @@ bool QImageReader::read(QImage *image)
+     if (!result) {
+         d->imageReaderError = InvalidDataError;
+         d->errorString = QImageReader::tr("Unable to read image data");
++#ifdef ENABLE_SA_TRACE
++        qt_tracepoint(Qt, qtImageReader, threadId, 0, fileName().toLatin1().constData());
++#endif // ENABLE_SA_TRACE
+         return false;
+     }
+ 
+@@ -1328,6 +1341,9 @@ bool QImageReader::read(QImage *image)
+     }
+     if (autoTransform())
+         qt_imageTransform(*image, transformation());
++#ifdef ENABLE_SA_TRACE
++    qt_tracepoint(Qt, qtImageReader, threadId, 0, fileName().toLatin1().constData());
++#endif // ENABLE_SA_TRACE
+ 
+     return true;
+ }
+-- 
+2.7.4
+
